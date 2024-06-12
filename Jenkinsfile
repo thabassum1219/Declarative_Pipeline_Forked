@@ -1,81 +1,56 @@
 pipeline {
-    agent any 
+    agent any
+    
     tools {
-        // Note: this should match with the tool name configured in your jenkins instance (JENKINS_URL/configureTools/)
-        maven "MVN_HOME"
-        
+        maven 'Maven 3.9.7' // This should match the name you gave in the Global Tool Configuration
     }
-	 environment {
-        // This can be nexus3 or nexus2
-        NEXUS_VERSION = "nexus3"
-        // This can be http or https
-        NEXUS_PROTOCOL = "http"
-        // Where your Nexus is running
-        NEXUS_URL = "3.133.145.136:8081"
-        // Repository where we will upload the artifact
-        NEXUS_REPOSITORY = "devops"
-        // Jenkins credential id to authenticate to Nexus OSS
-        NEXUS_CREDENTIAL_ID = "Nexus_server"
+
+    environment {
+        GIT_REPO = 'https://github.com/thabassum1219/Declarative_Pipeline_Forked.git'
+        BRANCH = 'master'
     }
+
     stages {
-        stage("clone code") {
+        stage('Checkout') {
             steps {
-                script {
-                    // Let's clone the source
-                    git 'https://github.com/betawins/spring3-mvc-maven-xml-hello-world-1.git';
-                }
+                echo 'Checking out the code...'
+                git branch: "${BRANCH}", url: "${GIT_REPO}"
             }
         }
-        stage("mvn build") {
+
+        stage('Build') {
             steps {
-                script {
-                    // If you are using Windows then you should use "bat" step
-                    // Since unit testing is out of the scope we skip them
-                    sh 'mvn -Dmaven.test.failure.ignore=true install'
-                }
+                echo 'Building the code...'
+                // Use the Maven tool configured in Jenkins
+                sh 'mvn clean package'
             }
         }
-        stage("publish to nexus") {
+
+        stage('Test') {
             steps {
-                script {
-                    // Read POM xml file using 'readMavenPom' step , this step 'readMavenPom' is included in: https://plugins.jenkins.io/pipeline-utility-steps
-                    pom = readMavenPom file: "pom.xml";
-                    // Find built artifact under target folder
-                    filesByGlob = findFiles(glob: "target/*.${pom.packaging}");
-                    // Print some info from the artifact found
-                    echo "${filesByGlob[0].name} ${filesByGlob[0].path} ${filesByGlob[0].directory} ${filesByGlob[0].length} ${filesByGlob[0].lastModified}"
-                    // Extract the path from the File found
-                    artifactPath = filesByGlob[0].path;
-                    // Assign to a boolean response verifying If the artifact name exists
-                    artifactExists = fileExists artifactPath;
-                    if(artifactExists) {
-                        echo "*** File: ${artifactPath}, group: ${pom.groupId}, packaging: ${pom.packaging}, version $BUILD_NUMBER}";
-                        nexusArtifactUploader(
-                            nexusVersion: NEXUS_VERSION,
-                            protocol: NEXUS_PROTOCOL,
-                            nexusUrl: NEXUS_URL,
-			    groupId: pom.groupId,
-                            version: '${BUILD_NUMBER}',
-                            repository: NEXUS_REPOSITORY,
-                            credentialsId: NEXUS_CREDENTIAL_ID,
-                            artifacts: [
-                                // Artifact generated such as .jar, .ear and .war files.
-                                [artifactId: pom.artifactId,
-                                classifier: '',
-                                file: artifactPath,
-                                type: pom.packaging],
-                                // Lets upload the pom.xml file for additional information for Transitive dependencies
-                                [artifactId: pom.artifactId,
-                                classifier: '',
-                                file: "pom.xml",
-                                type: "pom"]
-                            ]
-                        );
-                    } else {
-                        error "*** File: ${artifactPath}, could not be found";
-                    }
-                }
+                echo 'Running tests...'
+                sh 'mvn test'
             }
+        }
+
+        stage('Deploy') {
+            steps {
+                echo 'Deploying the application...'
+                // Add your deployment steps here
+            }
+        }
+    }
+
+    post {
+        always {
+            echo 'This will always run'
+        }
+        success {
+            echo 'This will run only if successful'
+        }
+        failure {
+            echo 'This will run only if failed'
         }
     }
 }
+
